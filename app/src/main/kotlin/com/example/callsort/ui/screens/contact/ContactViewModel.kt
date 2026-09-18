@@ -28,7 +28,7 @@ class ContactViewModel(
     val allCategories: StateFlow<List<CategoryEntity>> = repository.getAllCategories()
         .stateIn(
             scope = viewModelScope,
-            started = SharingStarted.WhileSubsubscribed(5000),
+            started = SharingStarted.WhileSubscribed(5000),
             initialValue = emptyList()
         )
 

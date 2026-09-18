@@ -36,7 +36,7 @@ class BoardViewModel(
     val categories: StateFlow<List<CategoryEntity>> = repository.getAllCategories()
         .stateIn(
             scope = viewModelScope,
-            started = SharingStarted.WhileSubsubscribed(5000),
+            started = SharingStarted.WhileSubscribed(5000),
             initialValue = emptyList()
         )
 
@@ -48,7 +48,7 @@ class BoardViewModel(
         }
         .stateIn(
             scope = viewModelScope,
-            started = SharingStarted.WhileSubsubscribed(5000),
+            started = SharingStarted.WhileSubscribed(5000),
             initialValue = emptyList()
         )
 

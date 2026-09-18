@@ -1,5 +1,4 @@
 package com.example.callsort
-import com.example.callsort.ui.theme.CallSortTheme
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity

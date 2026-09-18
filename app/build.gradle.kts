@@ -5,11 +5,11 @@ plugins {
 }
 
 android {
-    namespace = "com.example.callsort"
+    namespace = "com.reuel.callsort"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.example.callsort"
+        applicationId = "com.reuel.callsort"
         minSdk = 26
         targetSdk = 35
         versionCode = 1

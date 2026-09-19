@@ -2,78 +2,63 @@ package com.reuel.callsort.ui.screens.board
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.reuel.callsort.data.local.entities.CategoryEntity
-import com.reuel.callsort.data.local.entities.ContactEntity
+import com.reuel.callsort.data.repository.BackupRepository
 import com.reuel.callsort.data.repository.ContactRepository
-import com.reuel.callsort.domain.usecase.GetCategoryContactsUseCase
-import com.reuel.callsort.domain.usecase.SyncContactsUseCase
-import com.reuel.callsort.domain.usecase.SyncResult
-import kotlinx.coroutines.ExperimentalCoroutinesApi
+import com.reuel.callsort.data.local.entities.ContactEntity
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
-data class BoardUiState(
-    val selectedCategoryId: Long? = null,
-    val isSyncing: Boolean = false,
-    val syncError: String? = null
-)
-
 class BoardViewModel(
-    private val repository: ContactRepository,
-    private val getCategoryContactsUseCase: GetCategoryContactsUseCase,
-    private val syncContactsUseCase: SyncContactsUseCase
+    private val contactRepository: ContactRepository,
+    private val backupRepository: BackupRepository
 ) : ViewModel() {
 
-    private val _uiState = MutableStateFlow(BoardUiState())
-    val uiState: StateFlow<BoardUiState> = _uiState.asStateFlow()
+    private val _searchQuery = MutableStateFlow("")
+    val searchQuery: StateFlow<String> = _searchQuery
 
-    // Flow of categories for filter tabs/chips
-    val categories: StateFlow<List<CategoryEntity>> = repository.getAllCategories()
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5000),
-            initialValue = emptyList()
-        )
+    private val _statusMessage = MutableStateFlow<String?>(null)
+    val statusMessage: StateFlow<String?> = _statusMessage
 
-    // Flow of contacts based on selected category (supports upward inheritance)
-    @OptIn(ExperimentalCoroutinesApi::class)
-    val contacts: StateFlow<List<ContactEntity>> = _uiState
-        .flatMapLatest { state ->
-            getCategoryContactsUseCase(state.selectedCategoryId)
+    val filteredContacts: StateFlow<List<ContactEntity>> = combine(
+        contactRepository.allContacts,
+        _searchQuery
+    ) { contacts, query ->
+        if (query.isBlank()) {
+            contacts
+        } else {
+            contacts.filter { it.displayName.contains(query, ignoreCase = true) }
         }
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5000),
-            initialValue = emptyList()
-        )
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = emptyList()
+    )
 
-    fun selectCategory(categoryId: Long?) {
-        _uiState.value = _uiState.value.copy(selectedCategoryId = categoryId)
+    fun onSearchQueryChanged(newQuery: String) {
+        _searchQuery.value = newQuery
     }
 
-    fun syncContacts() {
+    fun exportData() {
         viewModelScope.launch {
-            syncContactsUseCase().collect { result ->
-                when (result) {
-                    is SyncResult.Loading -> {
-                        _uiState.value = _uiState.value.copy(isSyncing = true, syncError = null)
-                    }
-                    is SyncResult.Success -> {
-                        _uiState.value = _uiState.value.copy(isSyncing = false)
-                    }
-                    is SyncResult.Error -> {
-                        _uiState.value = _uiState.value.copy(
-                            isSyncing = false,
-                            syncError = result.exception.localizedMessage ?: "Failed to sync contacts"
-                        )
-                    }
-                }
-            }
+            backupRepository.exportData()
+                .onSuccess { file -> _statusMessage.value = "Exported to ${file.name}" }
+                .onFailure { error -> _statusMessage.value = "Export failed: ${error.message}" }
         }
+    }
+
+    fun importData() {
+        viewModelScope.launch {
+            backupRepository.importData()
+                .onSuccess { _statusMessage.value = "Import successful" }
+                .onFailure { error -> _statusMessage.value = "Import failed: ${error.message}" }
+        }
+    }
+
+    fun clearStatusMessage() {
+        _statusMessage.value = null
     }
 }
